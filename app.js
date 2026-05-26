@@ -39,9 +39,9 @@ function buildSky(){
   const skyGeo=new THREE.SphereGeometry(180,32,16);
   const pos=skyGeo.attributes.position;
   const colors=[];
-  const top=new THREE.Color(0x0b0b2a);
-  const mid=new THREE.Color(0x150a36);
-  const bottom=new THREE.Color(0x050112);
+  const top=new THREE.Color(0x0f0c29);
+  const mid=new THREE.Color(0x302b63);
+  const bottom=new THREE.Color(0x24243e);
   for(let i=0;i<pos.count;i++){
     const y=pos.getY(i)/180;
     const t=(y+1)/2;
@@ -708,16 +708,41 @@ placeRoyalAvenue();
 // MOON in sky
 // ════════════════════════════════════════════
 const moonGroup=new THREE.Group();
-moonGroup.position.set(-25,40,-100);
+moonGroup.position.set(-25,45,-120);
 scene.add(moonGroup);
-const moonMesh=new THREE.Mesh(new THREE.SphereGeometry(8,32,24),MM(0xfef3c7,0.85,0.2));
-moonMesh.castShadow=false;
-moonGroup.add(moonMesh);
-// Glow halo
-const moonHalo=new THREE.Mesh(new THREE.SphereGeometry(10.5,20,14),new THREE.MeshBasicMaterial({color:0xfde68a,transparent:true,opacity:0.14,side:THREE.BackSide}));
-moonGroup.add(moonHalo);
-// Moon point light
-const moonPL=new THREE.PointLight(0xfef3c7,1.2,240);
+
+const cBody=document.createElement('canvas');
+cBody.width=256;cBody.height=256;
+const ctxB=cBody.getContext('2d');
+ctxB.fillStyle='#fffceb';
+ctxB.beginPath();ctxB.arc(128,128,120,0,Math.PI*2);ctxB.fill();
+ctxB.fillStyle='rgba(230,220,180,0.5)';
+ctxB.beginPath();ctxB.arc(90,90,30,0,Math.PI*2);ctxB.fill();
+ctxB.beginPath();ctxB.arc(170,110,20,0,Math.PI*2);ctxB.fill();
+ctxB.beginPath();ctxB.arc(130,180,40,0,Math.PI*2);ctxB.fill();
+const texBody=new THREE.CanvasTexture(cBody);
+
+const cGlow=document.createElement('canvas');
+cGlow.width=256;cGlow.height=256;
+const ctxG=cGlow.getContext('2d');
+const gradG=ctxG.createRadialGradient(128,128,20,128,128,128);
+gradG.addColorStop(0,'rgba(255,255,255,1)');
+gradG.addColorStop(0.2,'rgba(253,230,138,0.9)');
+gradG.addColorStop(0.5,'rgba(236,72,153,0.4)');
+gradG.addColorStop(1,'rgba(124,58,237,0)');
+ctxG.fillStyle=gradG;
+ctxG.fillRect(0,0,256,256);
+const texGlow=new THREE.CanvasTexture(cGlow);
+
+const moonBody=new THREE.Sprite(new THREE.SpriteMaterial({map:texBody,color:0xffffff}));
+moonBody.scale.set(16,16,1);
+moonGroup.add(moonBody);
+
+const moonGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:texGlow,color:0xffffff,blending:THREE.AdditiveBlending,transparent:true}));
+moonGlow.scale.set(45,45,1);
+moonGroup.add(moonGlow);
+
+const moonPL=new THREE.PointLight(0xfde68a,1.5,250);
 moonPL.position.copy(moonGroup.position);
 scene.add(moonPL);
 
@@ -1491,17 +1516,21 @@ function startInspectionMode(){
   const focus=new THREE.Vector3(0,3.2,-6);
   castleGroup.localToWorld(focus);
   setLookOverride(focus);
-  moveCameraTo(castleT+0.02,()=>{
-    showTapHint('حرّكي الموبايل لتفحص القصر ✨',true);
+  
+  setTimeout(()=>{
     showSign('جولة تفحص القصر بدأت 👀');
     htmlConfetti(80);
     if(castleSignCycleTimer) clearInterval(castleSignCycleTimer);
     let idx=0;
     castleSignCycleTimer=setInterval(()=>{
-      showSign(castleWallSignTexts[idx%castleWallSignTexts.length]);
+      if(idx >= castleWallSignTexts.length) {
+        clearInterval(castleSignCycleTimer);
+        return;
+      }
+      showSign(castleWallSignTexts[idx]);
       idx++;
-    },2200);
-  },0.02);
+    },3800);
+  }, 100);
 }
 
 function updateMoonForGift(giftIdx){
@@ -1636,11 +1665,11 @@ function startCastleApproach(){
   setCastleMood(true);
   inputEnabled=false;
   showTapHint('',false);
-  showTimedMsg('🏰','بوابة القصر','الجو هنا أهدى شوية... والصدى أغرب...\nبس فيه دفء مستني جوا ✨',2300,()=>{
-    catSay('حاسّة إن القصر هنا ليه طابع مختلف... معاكس للمدينة شويه 😶',5200);
+  showTimedMsg('🏰','بوابة القصر','الجو هنا أهدى شوية... والصدى أغرب...\nبس فيه دفء مستني جوا ✨',800,()=>{
+    catSay('حاسّة إن القصر هنا ليه طابع مختلف... معاكس للمدينة شويه 😶',3000);
     showTapHint('اضغط أي مكان لفتح البوابة 🏰',true);
     showSign('ممنوع فتح الباب 👀');
-    setTimeout(()=>showSign('القصر ساكت... بس بينادي'),1800);
+    setTimeout(()=>showSign('القصر ساكت... بس بينادي'),1000);
     inputEnabled=true;
   });
 }
@@ -1650,14 +1679,14 @@ function openCastleGate(){
   inputEnabled=false;
   showTapHint('',false);
   playCastle();
-  showTimedMsg('🕯️','فتح البوابة','لحظة... البوابة بتستجيب ✨',1600,()=>{
+  showTimedMsg('🕯️','فتح البوابة','لحظة... البوابة بتستجيب ✨',400,()=>{
     let t2=0;
     const anim=()=>{
-      t2+=0.03;
+      t2+=0.15;
       if(doorL) doorL.rotation.y=-t2*0.9;
       if(doorR) doorR.rotation.y=t2*0.9;
       if(t2<Math.PI/2) requestAnimationFrame(anim);
-      else moveCameraTo(castleT+0.03,()=>startPartyScene(),0.018);
+      else moveCameraTo(castleT+0.03,()=>startPartyScene(),0.08);
     };
     requestAnimationFrame(anim);
   });
@@ -1788,16 +1817,8 @@ function onDeviceTilt(e){
 }
 
 function initTiltControl(){
-  if(tiltReqDone) return;
-  tiltReqDone=true;
-  if(typeof DeviceOrientationEvent==='undefined') return;
-  if(typeof DeviceOrientationEvent.requestPermission==='function'){
-    DeviceOrientationEvent.requestPermission().then(state=>{
-      if(state==='granted') window.addEventListener('deviceorientation',onDeviceTilt,true);
-    }).catch(()=>{});
-  } else {
-    window.addEventListener('deviceorientation',onDeviceTilt,true);
-  }
+  tiltEnabled=false;
+  return;
 }
 
 function handleTap(e){
@@ -1961,7 +1982,9 @@ function animate(){
   });
 
   // Moon glow pulse
-  moonMesh.material.emissiveIntensity=0.4+0.2*Math.sin(et*0.5);
+  if(typeof moonGlow !== 'undefined') {
+    moonGlow.material.opacity = 0.8+0.2*Math.sin(et*0.5);
+  }
 
   // Stars twinkle
   starMat.opacity=0.6+0.4*Math.sin(et*0.3);
@@ -1992,9 +2015,6 @@ function startJourney(){
   inputEnabled=true;
   showTapHint('اضغط أي مكان للتحرك',true);
   catSay(introCatLine,6000);
-  if('DeviceOrientationEvent'in window){
-    setTimeout(()=>showSign('حرّكي الموبايل لتغيير المنظور ✨'),3200);
-  }
   if(walkBtn) walkBtn.classList.add('show');
 }
 window.startJourney=startJourney;
