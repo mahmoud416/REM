@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>رحلة ريم السحرية ✨</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="loading">
+  <div style="font-size:48px;animation:moonBob 2s ease-in-out infinite">✨</div>
+  <div id="ltext">جاري بناء المدينة السحرية...</div>
+  <div style="display:flex;gap:8px;margin-top:8px">
+    <div class="ldot"></div><div class="ldot"></div><div class="ldot"></div>
+  </div>
+</div>
+
+<canvas id="c"></canvas>
+
+<div id="ui">
+  <div id="giftHud">🎁 <span id="giftNum">0</span>/6</div>
+  <div id="moonHud"><div class="moon-face" id="moonFace">🌙🙂</div></div>
+  <div id="tapHint"><div class="th-inner" id="tapText">اضغط أي مكان للتحرك</div></div>
+  <div id="signs"><div class="sign-pill" id="signPill"></div></div>
+</div>
+
+<div id="hbdBanner">HBD REEM ✨</div>
+
+<button id="walkBtn">🐾</button>
+
+<div id="cat">
+  <div id="catHead">
+    <svg class="cat-svg" viewBox="0 0 88 88" xmlns="http://www.w3.org/2000/svg">
+      <!-- Cat body/face -->
+      <defs>
+        <radialGradient id="faceg" cx="50%" cy="45%" r="50%">
+          <stop offset="0%" stop-color="#f8d5a0"/>
+          <stop offset="100%" stop-color="#e8a85a"/>
+        </radialGradient>
+        <radialGradient id="earig" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ffb4c8"/>
+          <stop offset="100%" stop-color="#ff8fab"/>
+        </radialGradient>
+      </defs>
+      <!-- Ears -->
+      <polygon points="14,34 22,8 36,30" fill="#e8a85a"/>
+      <polygon points="17,32 24,12 34,30" fill="url(#earig)"/>
+      <polygon points="52,30 66,8 74,34" fill="#e8a85a"/>
+      <polygon points="54,30 64,12 71,32" fill="url(#earig)"/>
+      <!-- Head -->
+      <circle cx="44" cy="50" r="32" fill="url(#faceg)"/>
+      <circle cx="44" cy="50" r="30" fill="none" stroke="#d4935a" stroke-width="1" opacity="0.3"/>
+      <!-- Cheek patches -->
+      <circle cx="26" cy="56" r="8" fill="#ffb8c8" opacity="0.4"/>
+      <circle cx="62" cy="56" r="8" fill="#ffb8c8" opacity="0.4"/>
+      <!-- Eyes -->
+      <ellipse id="eyeL" cx="33" cy="46" rx="6" ry="7" fill="#2d1a0a"/>
+      <ellipse id="eyeR" cx="55" cy="46" rx="6" ry="7" fill="#2d1a0a"/>
+      <!-- Eye shine -->
+      <circle cx="35" cy="44" r="2.5" fill="white"/>
+      <circle cx="57" cy="44" r="2.5" fill="white"/>
+      <circle cx="36" cy="45.5" r="1" fill="white" opacity="0.6"/>
+      <circle cx="58" cy="45.5" r="1" fill="white" opacity="0.6"/>
+      <!-- Blink layer -->
+      <ellipse id="blinkL" cx="33" cy="46" rx="6" ry="0.5" fill="#e8a85a" opacity="0"/>
+      <ellipse id="blinkR" cx="55" cy="46" rx="6" ry="0.5" fill="#e8a85a" opacity="0"/>
+      <!-- Nose -->
+      <path d="M41,56 L44,59 L47,56 Q44,53 41,56Z" fill="#d4507a"/>
+      <!-- Mouth -->
+      <path id="catMouth" d="M38,62 Q44,68 50,62" fill="none" stroke="#d4507a" stroke-width="2" stroke-linecap="round"/>
+      <!-- Whiskers -->
+      <line x1="8" y1="52" x2="30" y2="56" stroke="#c48a4a" stroke-width="1.5" opacity="0.7"/>
+      <line x1="8" y1="58" x2="30" y2="60" stroke="#c48a4a" stroke-width="1.5" opacity="0.7"/>
+      <line x1="58" y1="56" x2="80" y2="52" stroke="#c48a4a" stroke-width="1.5" opacity="0.7"/>
+      <line x1="58" y1="60" x2="80" y2="58" stroke="#c48a4a" stroke-width="1.5" opacity="0.7"/>
+      <!-- Forehead mark -->
+      <path d="M40,22 Q44,16 48,22 Q44,26 40,22Z" fill="#d4935a" opacity="0.5"/>
+    </svg>
+  </div>
+  <div id="speechBubble"></div>
+</div>
+
+<div id="intro">
+  <div class="intro-moon">🌙</div>
+  <div class="intro-text">في ليلة غير عادية...<br>المدينة السحرية كلها اتغيرت فجأة ✨<br>النجوم بقت تلمع أكتر...<br>والأنوار بقت أجمل...<br>وفيه سر غريب محدش فاهمه 👀</div>
+  <div class="intro-sub">القطة المرشدة مستنياك...</div>
+  <button class="btn-start" onclick="startJourney()">ابدأ الرحلة 🚀</button>
+</div>
+
+<div id="msgOverlay">
+  <div class="msg-card">
+    <div class="msg-emoji" id="msgEmoji"></div>
+    <div class="msg-title" id="msgTitle"></div>
+    <div class="msg-body" id="msgBody"></div>
+    <div class="msg-progress"><div class="msg-progress-bar" id="msgProgress"></div></div>
+  </div>
+</div>
+
+<div id="popup">
+  <div id="popCard">
+    <div id="popEmoji"></div>
+    <div id="popTitle"></div>
+    <div id="popText"></div>
+    <button id="popBtn" onclick="closePopup()">يلا نكمل 🌟</button>
+  </div>
+</div>
+
+<div id="finalMsg">
+  <div id="finalCard">
+    <button id="finalClose" onclick="closeFinalMessage()" aria-label="إغلاق">X</button>
+    <div id="finalContent"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
