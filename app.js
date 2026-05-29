@@ -20,41 +20,13 @@ function playHappyBirthday(){
 }
 
 // ════════════════════════════════════════════
-// PERFORMANCE PROFILE
-// ════════════════════════════════════════════
-const prefersReducedMotion=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const smallScreen=window.matchMedia&&window.matchMedia('(max-width: 820px)').matches;
-const touchDevice=('ontouchstart' in window)||navigator.maxTouchPoints>0;
-const lowCores=navigator.hardwareConcurrency&&navigator.hardwareConcurrency<=4;
-const lowMemory=navigator.deviceMemory&&navigator.deviceMemory<=4;
-const LOW_POWER=!!(prefersReducedMotion||smallScreen||touchDevice||lowCores||lowMemory);
-
-const PERF={
-  low:LOW_POWER,
-  pixelRatio:LOW_POWER?1:Math.min(window.devicePixelRatio,1.5),
-  shadows:!LOW_POWER,
-  cloudCount:LOW_POWER?6:10,
-  roadPoints:LOW_POWER?180:320,
-  cityPoints:LOW_POWER?36:60,
-  starCount:LOW_POWER?220:450,
-  skyOrbCount:LOW_POWER?10:22,
-  particleCount:LOW_POWER?50:100,
-  fireworksParticles:LOW_POWER?16:30,
-  confettiCount:LOW_POWER?120:240,
-  enableLocalLights:!LOW_POWER,
-  treeChance:LOW_POWER?0.45:0.7,
-  critterChance:LOW_POWER?0.3:0.55,
-  balloonChance:LOW_POWER?0.18:0.35,
-};
-
-// ════════════════════════════════════════════
 // SCENE SETUP
 // ════════════════════════════════════════════
 const canvas=document.getElementById('c');
-const renderer=new THREE.WebGLRenderer({canvas,antialias:!PERF.low,powerPreference:'high-performance'});
-renderer.setPixelRatio(PERF.pixelRatio);
-renderer.shadowMap.enabled=PERF.shadows;
-if(PERF.shadows) renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.5));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=1.2;
 renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -88,7 +60,7 @@ buildSky();
 const clouds=[];
 function buildClouds(){
   const cloudMat=new THREE.MeshStandardMaterial({color:0x3b1d6a,roughness:1,metalness:0,transparent:true,opacity:0.45});
-  for(let i=0;i<PERF.cloudCount;i++){
+  for(let i=0;i<10;i++){
     const g=new THREE.Group();
     const cx=(Math.random()-0.5)*160;
     const cy=18+Math.random()*20;
@@ -129,7 +101,7 @@ const hemiLight=new THREE.HemisphereLight(0x2b2148,0x05020d,0.45);
 scene.add(hemiLight);
 const sunLight=new THREE.DirectionalLight(0x6b7cc7,0.35);
 sunLight.position.set(18,26,12);
-sunLight.castShadow=PERF.shadows;
+sunLight.castShadow=true;
 sunLight.shadow.mapSize.set(1024,1024);
 sunLight.shadow.camera.far=140;
 sunLight.shadow.camera.left=-35;
@@ -192,13 +164,6 @@ const MM=(c,e=0,rough=0.7,metal=0.05)=>{
   return m;
 };
 
-function addPointLight(parent,color,intensity,distance,decay){
-  if(!PERF.enableLocalLights) return null;
-  const pl=new THREE.PointLight(color,intensity,distance,decay);
-  parent.add(pl);
-  return pl;
-}
-
 // ════════════════════════════════════════════
 // ROAD SPLINE
 // ════════════════════════════════════════════
@@ -233,7 +198,7 @@ const roadSpline=new THREE.CatmullRomCurve3(roadPoints);
 // BUILD ROAD MESH
 // ════════════════════════════════════════════
 function buildRoad(){
-  const pts=roadSpline.getPoints(PERF.roadPoints);
+  const pts=roadSpline.getPoints(320);
 
   function ribbon(width,y,mat){
     const geo=new THREE.BufferGeometry();
@@ -285,8 +250,7 @@ function buildRoad(){
   }
 
   // Small path lights along the avenue
-  const lightStep=PERF.low?36:24;
-  for(let i=6;i<pts.length;i+=lightStep){
+  for(let i=6;i<pts.length;i+=24){
     const cur=pts[i],nxt=pts[i+1]||pts[i-1];
     const dir=new THREE.Vector3().subVectors(nxt,cur).normalize();
     const right=new THREE.Vector3(-dir.z,0,dir.x);
@@ -295,8 +259,9 @@ function buildRoad(){
       const gem=new THREE.Mesh(new THREE.SphereGeometry(0.12,8,6),MM(0xffe3a6,1.2,0.2));
       gem.position.set(p.x,0.12,p.z);
       scene.add(gem);
-      const pl=addPointLight(scene,0xffe3a6,0.6,4,2);
-      if(pl) pl.position.set(p.x,0.5,p.z);
+      const pl=new THREE.PointLight(0xffe3a6,0.6,4,2);
+      pl.position.set(p.x,0.5,p.z);
+      scene.add(pl);
     });
   }
 }
@@ -512,8 +477,8 @@ function makeLantern(glowColor=0xfde68a){
   const glow=new THREE.Mesh(new THREE.SphereGeometry(0.14,8,6),MM(glowColor,2.8,0.1));
   glow.position.y=2.2; g.add(glow);
   // Point light
-  const pl=addPointLight(g,glowColor,3.2,9.5,2);
-  if(pl) pl.position.y=2.2;
+  const pl=new THREE.PointLight(glowColor,3.2,9.5,2);
+  pl.position.y=2.2; g.add(pl);
   return g;
 }
 
@@ -572,8 +537,8 @@ function makeRoyalArch(x,y,z,rotY=0){
   crown.position.set(0,4.8,0); g.add(crown);
   const jewel=new THREE.Mesh(new THREE.SphereGeometry(0.18,8,6),MM(0xfde68a,1.2,0.2));
   jewel.position.set(0,5.2,0); g.add(jewel);
-  const pl=addPointLight(g,0xfde68a,1,8,2);
-  if(pl) pl.position.set(0,5.2,0);
+  const pl=new THREE.PointLight(0xfde68a,1,8,2);
+  pl.position.set(0,5.2,0); g.add(pl);
   return g;
 }
 
@@ -655,7 +620,7 @@ const streetCritters=[];
 const skyOrbs=[];
 
 function placeCityAlong(){
-  const pts=roadSpline.getPoints(PERF.cityPoints);
+  const pts=roadSpline.getPoints(60);
   pts.forEach((pt,i)=>{
     if(i===0) return;
     const dir=i<pts.length-1
@@ -694,7 +659,7 @@ function placeCityAlong(){
       }
 
       // Trees
-      if(i%4===0 && Math.random()<PERF.treeChance){
+      if(i%4===0 && Math.random()<0.7){
         const tpos=pt.clone().addScaledVector(right,side*(off+1.5+Math.random()*1.5));
         const t=makeTree(0.8+Math.random()*0.5);
         t.position.set(tpos.x,0,tpos.z);
@@ -702,14 +667,14 @@ function placeCityAlong(){
       }
 
       // Street critters
-      if(i%5===0 && Math.random()<PERF.critterChance){
+      if(i%5===0 && Math.random()<0.55){
         const cpos=pt.clone().addScaledVector(right,side*(off-1.2+Math.random()*0.8));
         const types=['bunny','cat','bear','fox'];
         makeStreetCritter(types[(i+types.length)%types.length],cpos.x,0,cpos.z);
       }
 
       // Balloons
-      if(Math.random()<PERF.balloonChance){
+      if(Math.random()<0.35){
         const bpos2=bpos.clone().addScaledVector(right,side*0.5);
         const b=makeBalloon(null,bpos2.x,2.2+Math.random()*2.2,bpos2.z);
         balloons.push(b);
@@ -777,15 +742,16 @@ const moonGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:texGlow,color:0xff
 moonGlow.scale.set(45,45,1);
 moonGroup.add(moonGlow);
 
-const moonPL=addPointLight(scene,0xfde68a,1.5,250,2);
-if(moonPL) moonPL.position.copy(moonGroup.position);
+const moonPL=new THREE.PointLight(0xfde68a,1.5,250);
+moonPL.position.copy(moonGroup.position);
+scene.add(moonPL);
 
 // ════════════════════════════════════════════
 // STARS
 // ════════════════════════════════════════════
 const starGeo=new THREE.BufferGeometry();
 const starVerts=[];
-for(let i=0;i<PERF.starCount;i++){
+for(let i=0;i<450;i++){
   starVerts.push((Math.random()-0.5)*300,(10+Math.random()*60),(Math.random()-0.5)*300);
 }
 starGeo.setAttribute('position',new THREE.Float32BufferAttribute(starVerts,3));
@@ -794,7 +760,7 @@ scene.add(new THREE.Points(starGeo,starMat));
 
 function buildSkyOrbs(){
   const cols=[0xfde68a,0xf9a8d4,0xa78bfa,0x93c5fd,0x6ee7b7];
-  for(let i=0;i<PERF.skyOrbCount;i++){
+  for(let i=0;i<22;i++){
     const orb=new THREE.Mesh(
       new THREE.SphereGeometry(0.18+Math.random()*0.18,8,6),
       MM(cols[i%cols.length],0.9,0.2)
@@ -812,7 +778,7 @@ buildSkyOrbs();
 // ════════════════════════════════════════════
 const partGeo=new THREE.BufferGeometry();
 const partPos=[];const partPhases=[];
-for(let i=0;i<PERF.particleCount;i++){
+for(let i=0;i<100;i++){
   partPos.push((Math.random()-0.5)*80,(Math.random()*6),(Math.random()-0.5)*300-100);
   partPhases.push(Math.random()*Math.PI*2);
 }
@@ -860,8 +826,8 @@ function makeGiftBox(t,idx){
   const glowRing=new THREE.Mesh(new THREE.TorusGeometry(0.55,0.04,8,20),MM(0xfde68a,1.2,0.1));
   glowRing.rotation.x=Math.PI/2; glowRing.position.y=0.05;
   g.add(glowRing);
-  const pl=addPointLight(g,0xfde68a,2,4,2);
-  if(pl) pl.position.y=1;
+  const pl=new THREE.PointLight(0xfde68a,2,4,2);
+  pl.position.y=1; g.add(pl);
 
   g.userData={idx,t,opened:false,glowRing,pl};
   g.userData.bounceOffset=Math.random()*Math.PI*2;
@@ -979,8 +945,8 @@ function buildCastle(){
   spireTop.position.set(0,20.5,1); spireTop.castShadow=true; castleGroup.add(spireTop);
   const spireStar=new THREE.Mesh(new THREE.OctahedronGeometry(0.5),MM(0xfde68a,1.6,0.2));
   spireStar.position.set(0,22,1); castleGroup.add(spireStar);
-  const starLight=addPointLight(castleGroup,0xfde68a,1.6,18,2);
-  if(starLight) starLight.position.set(0,22,1);
+  const starLight=new THREE.PointLight(0xfde68a,1.6,18,2);
+  starLight.position.set(0,22,1); castleGroup.add(starLight);
 
   function addTower(x,z,h=9,r=1.6){
     const tower=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,12),shadowMat);
@@ -991,8 +957,8 @@ function buildCastle(){
     tFinial.position.set(x,h+3.2,z); castleGroup.add(tFinial);
     const tw=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.9,0.2),winGlowMat);
     tw.position.set(x+(x>0?-r*0.9:r*0.9),h*0.6,z); castleGroup.add(tw);
-    const pl=addPointLight(castleGroup,0xfff0b3,0.7,6,2);
-    if(pl) pl.position.set(x,h*0.7,z);
+    const pl=new THREE.PointLight(0xfff0b3,0.7,6,2);
+    pl.position.set(x,h*0.7,z); castleGroup.add(pl);
     const flagPole=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,2.2,6),goldMat);
     flagPole.position.set(x,h+3.6,z); castleGroup.add(flagPole);
     const flag=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.6,0.05),MM(0xec4899,0.2));
@@ -1017,8 +983,8 @@ function buildCastle(){
     [6,9,11].forEach(y=>{
       const mw=new THREE.Mesh(new THREE.BoxGeometry(0.9,1.2,0.12),winGlowMat);
       mw.position.set(x,y,-2.6); castleGroup.add(mw);
-      const wpl=addPointLight(castleGroup,0xfff0b3,0.5,4,2);
-      if(wpl) wpl.position.set(x,y,-2.2);
+      const wpl=new THREE.PointLight(0xfff0b3,0.5,4,2);
+      wpl.position.set(x,y,-2.2); castleGroup.add(wpl);
     });
   });
 
@@ -1031,16 +997,16 @@ function buildCastle(){
   torchL.position.set(-2.2,1.9,-7.2); castleGroup.add(torchL);
   const torchR=new THREE.Mesh(new THREE.SphereGeometry(0.18,8,6),gateGlowMat);
   torchR.position.set(2.2,1.9,-7.2); castleGroup.add(torchR);
-  const torchPL=addPointLight(castleGroup,0xfde68a,1.2,6,2);
-  if(torchPL) torchPL.position.set(-2.2,2.1,-7.2);
-  const torchPR=addPointLight(castleGroup,0xfde68a,1.2,6,2);
-  if(torchPR) torchPR.position.set(2.2,2.1,-7.2);
+  const torchPL=new THREE.PointLight(0xfde68a,1.2,6,2);
+  torchPL.position.set(-2.2,2.1,-7.2); castleGroup.add(torchPL);
+  const torchPR=new THREE.PointLight(0xfde68a,1.2,6,2);
+  torchPR.position.set(2.2,2.1,-7.2); castleGroup.add(torchPR);
 
   // Castle ambient glow
-  const apl=addPointLight(castleGroup,0xa78bfa,2.2,35,1);
-  if(apl) apl.position.set(0,9,0);
-  const gpl=addPointLight(castleGroup,0xfde68a,2,30,1.5);
-  if(gpl) gpl.position.set(0,18,1);
+  const apl=new THREE.PointLight(0xa78bfa,2.2,35,1);
+  apl.position.set(0,9,0); castleGroup.add(apl);
+  const gpl=new THREE.PointLight(0xfde68a,2,30,1.5);
+  gpl.position.set(0,18,1); castleGroup.add(gpl);
 }
 buildCastle();
 
@@ -1056,8 +1022,9 @@ function buildCastleSigns(){
   spots.forEach((p)=>{
     const s=makeSign3D('',p.x,0,p.z,p.ry);
     castleSignGroup.add(s);
-    const glow=addPointLight(castleSignGroup,0xfde68a,0.8,6,2);
-    if(glow) glow.position.set(p.x,1.8,p.z);
+    const glow=new THREE.PointLight(0xfde68a,0.8,6,2);
+    glow.position.set(p.x,1.8,p.z);
+    castleSignGroup.add(glow);
   });
 }
 buildCastleSigns();
@@ -1206,8 +1173,8 @@ function buildCake(){
     candle.position.set(cx2,4.6,cz2); cakeGroup.add(candle);
     const flame=new THREE.Mesh(new THREE.SphereGeometry(0.07,6,5),MM(0xfde68a,2));
     flame.position.set(cx2,4.95,cz2); flame.scale.y=1.5; cakeGroup.add(flame);
-    const fpl=addPointLight(cakeGroup,0xfde68a,1.6,2.5,2);
-    if(fpl) fpl.position.set(cx2,4.95,cz2);
+    const fpl=new THREE.PointLight(0xfde68a,1.6,2.5,2);
+    fpl.position.set(cx2,4.95,cz2); cakeGroup.add(fpl);
   }
 
   // Crown topper
@@ -1219,8 +1186,8 @@ function buildCake(){
   starDeco.position.y=6.1; cakeGroup.add(starDeco);
 
   // Glow
-  const cpl=addPointLight(cakeGroup,0xf9a8d4,3.5,12,1.5);
-  if(cpl) cpl.position.y=2.5;
+  const cpl=new THREE.PointLight(0xf9a8d4,3.5,12,1.5);
+  cpl.position.y=2.5; cakeGroup.add(cpl);
 
   // Click detection sphere (invisible)
   const hitSphere=new THREE.Mesh(new THREE.SphereGeometry(3.2,8,6),new THREE.MeshBasicMaterial({transparent:true,opacity:0}));
@@ -1235,7 +1202,7 @@ buildCake();
 const fwParticles=[];
 function spawnFW(x,y,z){
   const colors=[0xf59e0b,0xec4899,0xa78bfa,0xfde68a,0x93c5fd,0x6ee7b7,0xffffff];
-  for(let i=0;i<PERF.fireworksParticles;i++){
+  for(let i=0;i<30;i++){
     const geo=new THREE.SphereGeometry(0.08,4,3);
     const mat=new THREE.MeshBasicMaterial({color:colors[Math.floor(Math.random()*colors.length)]});
     const p=new THREE.Mesh(geo,mat);
@@ -1250,8 +1217,7 @@ function spawnFW(x,y,z){
   }
 }
 function spawnFWBurst(){
-  const bursts=PERF.low?5:8;
-  for(let i=0;i<bursts;i++){
+  for(let i=0;i<8;i++){
     setTimeout(()=>{
       const x=(Math.random()-0.5)*20;
       const y=8+Math.random()*12;
@@ -1263,7 +1229,7 @@ function spawnFWBurst(){
 }
 
 // HTML Confetti
-function htmlConfetti(n=PERF.confettiCount){
+function htmlConfetti(n=80){
   const cols=['#7c3aed','#ec4899','#f59e0b','#a78bfa','#fde68a','#93c5fd','#6ee7b7','#f9a8d4'];
   for(let i=0;i<n;i++){
     const el=document.createElement('div');
@@ -1514,7 +1480,7 @@ function startFinalCelebration(){
 
   // Fireworks + confetti + music
   spawnFWBurst();
-  htmlConfetti(PERF.confettiCount);
+  htmlConfetti(240);
   if(!birthdayLoopActive) playHappyBirthday();
   catSay('Happy Birthday Reem! 🎉🎂',6000);
   showSign('Happy Birthday Reem 🎶');
@@ -1553,7 +1519,7 @@ function startInspectionMode(){
   
   setTimeout(()=>{
     showSign('جولة تفحص القصر بدأت 👀');
-    htmlConfetti(Math.round(PERF.confettiCount*0.35));
+    htmlConfetti(80);
     if(castleSignCycleTimer) clearInterval(castleSignCycleTimer);
     let idx=0;
     castleSignCycleTimer=setInterval(()=>{
@@ -1760,15 +1726,16 @@ function startPartyScene(){
     bulb.position.set(Math.cos(ang)*4.7,1.4,Math.sin(ang)*4.7);
     ring.add(bulb);
     if(i%3===0){
-      const pl=addPointLight(ring,col,0.9,6,2);
-      if(pl) pl.position.copy(bulb.position);
+      const pl=new THREE.PointLight(col,0.9,6,2);
+      pl.position.copy(bulb.position);
+      ring.add(pl);
     }
   }
   partyGroup.add(ring);
 
   // Soft fireworks and confetti in the distance
   spawnFWBurst();
-  htmlConfetti(Math.round(PERF.confettiCount*0.7));
+  htmlConfetti(160);
 
   catSay('بنصحك بلاش تدوسي عليها 😂 بس لو نفسك اضغطي 🎂',5200);
   showTapHint('اضغط على التورتة 🎂',true);
