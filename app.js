@@ -23,9 +23,13 @@ function playHappyBirthday(){
 // SCENE SETUP
 // ════════════════════════════════════════════
 const canvas=document.getElementById('c');
-const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.5));
-renderer.shadowMap.enabled=true;
+// Detect mobile for aggressive optimizations
+const isMobile=/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||window.innerWidth<768;
+const renderer=new THREE.WebGLRenderer({canvas,antialias:!isMobile,powerPreference:'high-performance'});
+// Mobile: cap at 1.0 to halve fragment shader load; desktop: allow up to 1.5
+renderer.setPixelRatio(isMobile?Math.min(window.devicePixelRatio,1.0):Math.min(window.devicePixelRatio,1.5));
+// Shadows only on desktop
+renderer.shadowMap.enabled=!isMobile;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=1.2;
@@ -36,7 +40,8 @@ scene.background=new THREE.Color(0x04011a);
 scene.fog=new THREE.FogExp2(0x08022a,0.02);
 
 function buildSky(){
-  const skyGeo=new THREE.SphereGeometry(180,32,16);
+  const segs=isMobile?16:32;
+  const skyGeo=new THREE.SphereGeometry(180,segs,isMobile?8:16);
   const pos=skyGeo.attributes.position;
   const colors=[];
   const top=new THREE.Color(0x0f0c29);
@@ -59,15 +64,20 @@ buildSky();
 
 const clouds=[];
 function buildClouds(){
-  const cloudMat=new THREE.MeshStandardMaterial({color:0x3b1d6a,roughness:1,metalness:0,transparent:true,opacity:0.45});
-  for(let i=0;i<10;i++){
+  const cloudMat=isMobile
+    ? new THREE.MeshPhongMaterial({color:0x3b1d6a,shininess:10,transparent:true,opacity:0.45})
+    : new THREE.MeshStandardMaterial({color:0x3b1d6a,roughness:1,metalness:0,transparent:true,opacity:0.45});
+  const cloudCount=isMobile?5:10;
+  // Share a single puff geometry across all cloud puffs
+  const sharedPuffGeo=new THREE.SphereGeometry(1.5,isMobile?5:8,isMobile?4:6);
+  for(let i=0;i<cloudCount;i++){
     const g=new THREE.Group();
     const cx=(Math.random()-0.5)*160;
     const cy=18+Math.random()*20;
     const cz=(Math.random()-0.5)*200-40;
-    const puffCount=3+Math.floor(Math.random()*3);
+    const puffCount=isMobile?2:3+Math.floor(Math.random()*3);
     for(let p=0;p<puffCount;p++){
-      const puff=new THREE.Mesh(new THREE.SphereGeometry(1.4+Math.random()*1.6,8,6),cloudMat);
+      const puff=new THREE.Mesh(sharedPuffGeo,cloudMat);
       puff.position.set((Math.random()-0.5)*3,(Math.random()-0.5)*1,(Math.random()-0.5)*2);
       g.add(puff);
     }
@@ -85,7 +95,10 @@ const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,0.1,200);
 camera.position.set(0,2.6,-0.5);
 camera.rotation.x=-0.06;
 
+let lastWidth = window.innerWidth;
 window.addEventListener('resize',()=>{
+  if(isMobile && window.innerWidth === lastWidth) return;
+  lastWidth = window.innerWidth;
   camera.aspect=innerWidth/innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);
@@ -101,8 +114,8 @@ const hemiLight=new THREE.HemisphereLight(0x2b2148,0x05020d,0.45);
 scene.add(hemiLight);
 const sunLight=new THREE.DirectionalLight(0x6b7cc7,0.35);
 sunLight.position.set(18,26,12);
-sunLight.castShadow=true;
-sunLight.shadow.mapSize.set(1024,1024);
+sunLight.castShadow=!isMobile;
+sunLight.shadow.mapSize.set(isMobile?512:1024,isMobile?512:1024);
 sunLight.shadow.camera.far=140;
 sunLight.shadow.camera.left=-35;
 sunLight.shadow.camera.right=35;
@@ -159,8 +172,16 @@ function setCastleMood(active){
 // MATERIALS HELPER
 // ════════════════════════════════════════════
 const MM=(c,e=0,rough=0.7,metal=0.05)=>{
-  const m=new THREE.MeshStandardMaterial({color:c,roughness:rough,metalness:metal});
-  if(e>0)m.emissive=new THREE.Color(c);m.emissiveIntensity=e;
+  let m;
+  if (isMobile) {
+    m = new THREE.MeshPhongMaterial({color:c,shininess:30});
+  } else {
+    m = new THREE.MeshStandardMaterial({color:c,roughness:rough,metalness:metal});
+  }
+  if(e>0) {
+    m.emissive=new THREE.Color(c);
+    m.emissiveIntensity=e;
+  }
   return m;
 };
 
@@ -198,7 +219,7 @@ const roadSpline=new THREE.CatmullRomCurve3(roadPoints);
 // BUILD ROAD MESH
 // ════════════════════════════════════════════
 function buildRoad(){
-  const pts=roadSpline.getPoints(320);
+  const pts=roadSpline.getPoints(isMobile?160:320);
 
   function ribbon(width,y,mat){
     const geo=new THREE.BufferGeometry();
@@ -228,9 +249,9 @@ function buildRoad(){
     return mesh;
   }
 
-  const roadMat=new THREE.MeshStandardMaterial({color:0x1e0e50,roughness:0.95,metalness:0.0});
-  const inlayMat=new THREE.MeshStandardMaterial({color:0x1a0f3a,roughness:0.7,metalness:0.05,emissive:new THREE.Color(0x1a0f3a),emissiveIntensity:0.02});
-  const centerMat=new THREE.MeshStandardMaterial({color:0x2a1b5a,roughness:0.5,metalness:0.1,emissive:new THREE.Color(0x2a1b5a),emissiveIntensity:0.05});
+  const roadMat = isMobile ? new THREE.MeshPhongMaterial({color:0x1e0e50,shininess:5}) : new THREE.MeshStandardMaterial({color:0x1e0e50,roughness:0.95,metalness:0.0});
+  const inlayMat = isMobile ? new THREE.MeshPhongMaterial({color:0x1a0f3a,shininess:15,emissive:new THREE.Color(0x1a0f3a),emissiveIntensity:0.02}) : new THREE.MeshStandardMaterial({color:0x1a0f3a,roughness:0.7,metalness:0.05,emissive:new THREE.Color(0x1a0f3a),emissiveIntensity:0.02});
+  const centerMat = isMobile ? new THREE.MeshPhongMaterial({color:0x2a1b5a,shininess:30,emissive:new THREE.Color(0x2a1b5a),emissiveIntensity:0.05}) : new THREE.MeshStandardMaterial({color:0x2a1b5a,roughness:0.5,metalness:0.1,emissive:new THREE.Color(0x2a1b5a),emissiveIntensity:0.05});
 
   ribbon(3.6,-0.06,roadMat);
   ribbon(2.45,-0.03,inlayMat);
@@ -249,19 +270,22 @@ function buildRoad(){
     scene.add(el);
   }
 
-  // Small path lights along the avenue
-  for(let i=6;i<pts.length;i+=24){
+  // Small path lights along the avenue — fewer on mobile (each PointLight is expensive)
+  const lightStep=isMobile?60:24;
+  for(let i=6;i<pts.length;i+=lightStep){
     const cur=pts[i],nxt=pts[i+1]||pts[i-1];
     const dir=new THREE.Vector3().subVectors(nxt,cur).normalize();
     const right=new THREE.Vector3(-dir.z,0,dir.x);
     [-1,1].forEach(side=>{
       const p=cur.clone().addScaledVector(right,side*3.1);
-      const gem=new THREE.Mesh(new THREE.SphereGeometry(0.12,8,6),MM(0xffe3a6,1.2,0.2));
+      const gem=new THREE.Mesh(new THREE.SphereGeometry(0.12,6,5),MM(0xffe3a6,1.2,0.2));
       gem.position.set(p.x,0.12,p.z);
       scene.add(gem);
-      const pl=new THREE.PointLight(0xffe3a6,0.6,4,2);
-      pl.position.set(p.x,0.5,p.z);
-      scene.add(pl);
+      if(!isMobile){
+        const pl=new THREE.PointLight(0xffe3a6,0.6,4,2);
+        pl.position.set(p.x,0.5,p.z);
+        scene.add(pl);
+      }
     });
   }
 }
@@ -269,7 +293,7 @@ buildRoad();
 
 // Ground (wide magical grass/floor)
 const groundGeo=new THREE.PlaneGeometry(220,320);
-const groundMat=new THREE.MeshStandardMaterial({color:0x050310,roughness:1,metalness:0});
+const groundMat=isMobile ? new THREE.MeshPhongMaterial({color:0x050310,shininess:5}) : new THREE.MeshStandardMaterial({color:0x050310,roughness:1,metalness:0});
 const ground=new THREE.Mesh(groundGeo,groundMat);
 ground.rotation.x=-Math.PI/2; ground.position.y=-0.1; ground.position.z=-80;
 ground.receiveShadow=true;
@@ -326,17 +350,19 @@ function makeHouse(type,seed){
   group.add(body);
 
   // Rounded base skirt to soften the silhouette
-  const baseR=Math.max(w,d)*0.55;
-  const base=new THREE.Mesh(new THREE.CylinderGeometry(baseR,baseR*1.05,0.22,12),MM(0xf7f2ff,0,0.8));
-  base.position.y=0.11; base.castShadow=true; base.receiveShadow=true;
-  group.add(base);
+  if (!isMobile) {
+    const baseR=Math.max(w,d)*0.55;
+    const base=new THREE.Mesh(new THREE.CylinderGeometry(baseR,baseR*1.05,0.22,12),MM(0xf7f2ff,0,0.8));
+    base.position.y=0.11; base.castShadow=true; base.receiveShadow=true;
+    group.add(base);
 
-  // Trim around base
-  const trimGeo=new THREE.BoxGeometry(w+0.1,0.12,d+0.1);
-  const trim=new THREE.Mesh(trimGeo,trimMat);
-  trim.position.y=0.06; group.add(trim);
-  const trim2=new THREE.Mesh(trimGeo,trimMat);
-  trim2.position.y=h-0.06; group.add(trim2);
+    // Trim around base
+    const trimGeo=new THREE.BoxGeometry(w+0.1,0.12,d+0.1);
+    const trim=new THREE.Mesh(trimGeo,trimMat);
+    trim.position.y=0.06; group.add(trim);
+    const trim2=new THREE.Mesh(trimGeo,trimMat);
+    trim2.position.y=h-0.06; group.add(trim2);
+  }
 
   // Roof
   if(rng(6)<0.5){
@@ -346,7 +372,7 @@ function makeHouse(type,seed){
     roof.position.y=h+0.45; roof.rotation.y=Math.PI/4;
     roof.castShadow=true; group.add(roof);
     // Chimney
-    if(rng(8)<0.6){
+    if(!isMobile && rng(8)<0.6){
       const chim=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.4,0.22),MM(0x604030));
       chim.position.set(w*0.2,h+0.75+0.2,0); chim.castShadow=true; group.add(chim);
       // Smoke puff
@@ -391,14 +417,16 @@ function makeHouse(type,seed){
     winGlass.userData.isWin=true; winGlass.userData.blinkOff=rng(11+i)*6;
     group.add(winGlass);
     // Window arch top
-    const archGeo=new THREE.CylinderGeometry(0.14,0.14,0.05,8,1,false,0,Math.PI);
-    const arch=new THREE.Mesh(archGeo,trimMat);
-    arch.position.set(wx,h*0.55+0.17+0.025,d*0.51); arch.rotation.x=Math.PI/2;
-    group.add(arch);
+    if(!isMobile) {
+      const archGeo=new THREE.CylinderGeometry(0.14,0.14,0.05,8,1,false,0,Math.PI);
+      const arch=new THREE.Mesh(archGeo,trimMat);
+      arch.position.set(wx,h*0.55+0.17+0.025,d*0.51); arch.rotation.x=Math.PI/2;
+      group.add(arch);
+    }
   }
 
   // Round feature window
-  if(rng(20)<0.4){
+  if(!isMobile && rng(20)<0.4){
     const rw=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.06,12),winMat);
     rw.position.set(-w*0.25,h*0.75,d*0.52);
     rw.rotation.x=Math.PI/2;
@@ -407,7 +435,7 @@ function makeHouse(type,seed){
   }
 
   // Small awning
-  if(rng(22)<0.45){
+  if(!isMobile && rng(22)<0.45){
     const awnMat=MM(0xf9a8d4,0.2,0.5);
     const awn=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.08,0.4),awnMat);
     awn.position.set(0,h*0.35,d*0.55);
@@ -420,13 +448,15 @@ function makeHouse(type,seed){
   const door=new THREE.Mesh(new THREE.BoxGeometry(0.38,0.6,d+0.02),doorMat);
   door.position.set(0,0.3,0); group.add(door);
   // Door arch
-  const darchGeo=new THREE.TorusGeometry(0.19,0.05,8,16,Math.PI);
-  const darch=new THREE.Mesh(darchGeo,trimMat);
-  darch.position.set(0,0.6,d*0.51); darch.rotation.z=Math.PI;
-  group.add(darch);
+  if(!isMobile) {
+    const darchGeo=new THREE.TorusGeometry(0.19,0.05,8,16,Math.PI);
+    const darch=new THREE.Mesh(darchGeo,trimMat);
+    darch.position.set(0,0.6,d*0.51); darch.rotation.z=Math.PI;
+    group.add(darch);
+  }
 
   // Balcony (sometimes)
-  if(rng(12)<0.4 && h>2){
+  if(!isMobile && rng(12)<0.4 && h>2){
     const balMat=MM(0xf0ead0,0,0.7);
     const balFloor=new THREE.Mesh(new THREE.BoxGeometry(w*0.7,0.06,0.55),balMat);
     balFloor.position.set(0,h*0.65,d*0.5+0.27); group.add(balFloor);
@@ -446,7 +476,7 @@ function makeHouse(type,seed){
   }
 
   // Flower boxes
-  if(rng(13)<0.5){
+  if(!isMobile && rng(13)<0.5){
     const fbMat=MM(0x8b4513,0,0.9);
     const fb=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.12,0.18),fbMat);
     fb.position.set(0,h*0.4,d*0.5+0.09); group.add(fb);
@@ -465,20 +495,22 @@ function makeHouse(type,seed){
 function makeLantern(glowColor=0xfde68a){
   const g=new THREE.Group();
   // Pole
-  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.05,2.4,8),MM(0x3a2a1a));
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.05,2.4,isMobile?5:8),MM(0x3a2a1a));
   pole.position.y=1.2; pole.castShadow=true; g.add(pole);
   // Top cross
   const cross=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.05,0.05),MM(0x3a2a1a));
   cross.position.y=2.35; g.add(cross);
   // Lantern body
-  const lanBody=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.15,0.35,6),MM(0x2a1a0a,0,0.6));
+  const lanBody=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.15,0.35,isMobile?4:6),MM(0x2a1a0a,0,0.6));
   lanBody.position.y=2.2; g.add(lanBody);
   // Glow
-  const glow=new THREE.Mesh(new THREE.SphereGeometry(0.14,8,6),MM(glowColor,2.8,0.1));
+  const glow=new THREE.Mesh(new THREE.SphereGeometry(0.14,isMobile?5:8,isMobile?4:6),MM(glowColor,2.8,0.1));
   glow.position.y=2.2; g.add(glow);
-  // Point light
-  const pl=new THREE.PointLight(glowColor,3.2,9.5,2);
-  pl.position.y=2.2; g.add(pl);
+  // PointLights are the #1 GPU cost — skip on mobile
+  if(!isMobile){
+    const pl=new THREE.PointLight(glowColor,3.2,9.5,2);
+    pl.position.y=2.2; g.add(pl);
+  }
   return g;
 }
 
@@ -537,8 +569,10 @@ function makeRoyalArch(x,y,z,rotY=0){
   crown.position.set(0,4.8,0); g.add(crown);
   const jewel=new THREE.Mesh(new THREE.SphereGeometry(0.18,8,6),MM(0xfde68a,1.2,0.2));
   jewel.position.set(0,5.2,0); g.add(jewel);
-  const pl=new THREE.PointLight(0xfde68a,1,8,2);
-  pl.position.set(0,5.2,0); g.add(pl);
+  if(!isMobile){
+    const pl=new THREE.PointLight(0xfde68a,1,8,2);
+    pl.position.set(0,5.2,0); g.add(pl);
+  }
   return g;
 }
 
@@ -620,7 +654,7 @@ const streetCritters=[];
 const skyOrbs=[];
 
 function placeCityAlong(){
-  const pts=roadSpline.getPoints(60);
+  const pts=roadSpline.getPoints(isMobile?36:60);
   pts.forEach((pt,i)=>{
     if(i===0) return;
     const dir=i<pts.length-1
@@ -648,8 +682,9 @@ function placeCityAlong(){
         });
       }
 
-      // Lanterns
-      if(i%2===0){
+      // Lanterns — every other segment on mobile
+      const lanternStep=isMobile?4:2;
+      if(i%lanternStep===0){
         const lpos=pt.clone().addScaledVector(right,side*3.5);
         const lanColors=[0xfde68a,0xffd089,0xf9a8d4,0xffc0d9];
         const lan=makeLantern(lanColors[i%lanColors.length]);
@@ -658,29 +693,33 @@ function placeCityAlong(){
         allObjects.push(lan);
       }
 
-      // Trees
-      if(i%4===0 && Math.random()<0.7){
+      // Trees — less on mobile
+      const treeStep=isMobile?8:4;
+      const treePct=isMobile?0.5:0.7;
+      if(i%treeStep===0 && Math.random()<treePct){
         const tpos=pt.clone().addScaledVector(right,side*(off+1.5+Math.random()*1.5));
         const t=makeTree(0.8+Math.random()*0.5);
         t.position.set(tpos.x,0,tpos.z);
         scene.add(t);
       }
 
-      // Street critters
-      if(i%5===0 && Math.random()<0.55){
+      // Street critters — less on mobile
+      const critterStep=isMobile?10:5;
+      const critterPct=isMobile?0.35:0.55;
+      if(i%critterStep===0 && Math.random()<critterPct){
         const cpos=pt.clone().addScaledVector(right,side*(off-1.2+Math.random()*0.8));
         const types=['bunny','cat','bear','fox'];
         makeStreetCritter(types[(i+types.length)%types.length],cpos.x,0,cpos.z);
       }
 
-      // Balloons
-      if(Math.random()<0.35){
+      // Balloons — skip on mobile
+      if(!isMobile && Math.random()<0.35){
         const bpos2=bpos.clone().addScaledVector(right,side*0.5);
         const b=makeBalloon(null,bpos2.x,2.2+Math.random()*2.2,bpos2.z);
         balloons.push(b);
       }
 
-      // Signs (funny ones)
+      // Signs
       if(i%8===0 && side===1){
         const spos=pt.clone().addScaledVector(right,side*3.6);
         const signs3d=makeSign3D('',spos.x,0,spos.z,Math.atan2(-dir.x,-dir.z));
@@ -751,7 +790,8 @@ scene.add(moonPL);
 // ════════════════════════════════════════════
 const starGeo=new THREE.BufferGeometry();
 const starVerts=[];
-for(let i=0;i<450;i++){
+const starCount=isMobile?200:450;
+for(let i=0;i<starCount;i++){
   starVerts.push((Math.random()-0.5)*300,(10+Math.random()*60),(Math.random()-0.5)*300);
 }
 starGeo.setAttribute('position',new THREE.Float32BufferAttribute(starVerts,3));
@@ -760,7 +800,8 @@ scene.add(new THREE.Points(starGeo,starMat));
 
 function buildSkyOrbs(){
   const cols=[0xfde68a,0xf9a8d4,0xa78bfa,0x93c5fd,0x6ee7b7];
-  for(let i=0;i<22;i++){
+  const orbCount=isMobile?8:22;
+  for(let i=0;i<orbCount;i++){
     const orb=new THREE.Mesh(
       new THREE.SphereGeometry(0.18+Math.random()*0.18,8,6),
       MM(cols[i%cols.length],0.9,0.2)
@@ -778,7 +819,8 @@ buildSkyOrbs();
 // ════════════════════════════════════════════
 const partGeo=new THREE.BufferGeometry();
 const partPos=[];const partPhases=[];
-for(let i=0;i<100;i++){
+const partCount=isMobile?40:100;
+for(let i=0;i<partCount;i++){
   partPos.push((Math.random()-0.5)*80,(Math.random()*6),(Math.random()-0.5)*300-100);
   partPhases.push(Math.random()*Math.PI*2);
 }
@@ -826,11 +868,13 @@ function makeGiftBox(t,idx){
   const glowRing=new THREE.Mesh(new THREE.TorusGeometry(0.55,0.04,8,20),MM(0xfde68a,1.2,0.1));
   glowRing.rotation.x=Math.PI/2; glowRing.position.y=0.05;
   g.add(glowRing);
-  const pl=new THREE.PointLight(0xfde68a,2,4,2);
-  pl.position.y=1; g.add(pl);
 
-  g.userData={idx,t,opened:false,glowRing,pl};
-  g.userData.bounceOffset=Math.random()*Math.PI*2;
+  g.userData={idx,t,opened:false,glowRing,pl:null};
+  if(!isMobile){
+    const gpl=new THREE.PointLight(0xfde68a,2,4,2);
+    gpl.position.y=1; g.add(gpl);
+    g.userData.pl=gpl;
+  }
   scene.add(g);
   giftMeshes.push(g);
   return g;
@@ -945,8 +989,10 @@ function buildCastle(){
   spireTop.position.set(0,20.5,1); spireTop.castShadow=true; castleGroup.add(spireTop);
   const spireStar=new THREE.Mesh(new THREE.OctahedronGeometry(0.5),MM(0xfde68a,1.6,0.2));
   spireStar.position.set(0,22,1); castleGroup.add(spireStar);
-  const starLight=new THREE.PointLight(0xfde68a,1.6,18,2);
-  starLight.position.set(0,22,1); castleGroup.add(starLight);
+  if(!isMobile) {
+    const starLight=new THREE.PointLight(0xfde68a,1.6,18,2);
+    starLight.position.set(0,22,1); castleGroup.add(starLight);
+  }
 
   function addTower(x,z,h=9,r=1.6){
     const tower=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,12),shadowMat);
@@ -957,8 +1003,10 @@ function buildCastle(){
     tFinial.position.set(x,h+3.2,z); castleGroup.add(tFinial);
     const tw=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.9,0.2),winGlowMat);
     tw.position.set(x+(x>0?-r*0.9:r*0.9),h*0.6,z); castleGroup.add(tw);
-    const pl=new THREE.PointLight(0xfff0b3,0.7,6,2);
-    pl.position.set(x,h*0.7,z); castleGroup.add(pl);
+    if(!isMobile){
+      const pl=new THREE.PointLight(0xfff0b3,0.7,6,2);
+      pl.position.set(x,h*0.7,z); castleGroup.add(pl);
+    }
     const flagPole=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,2.2,6),goldMat);
     flagPole.position.set(x,h+3.6,z); castleGroup.add(flagPole);
     const flag=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.6,0.05),MM(0xec4899,0.2));
@@ -983,8 +1031,10 @@ function buildCastle(){
     [6,9,11].forEach(y=>{
       const mw=new THREE.Mesh(new THREE.BoxGeometry(0.9,1.2,0.12),winGlowMat);
       mw.position.set(x,y,-2.6); castleGroup.add(mw);
-      const wpl=new THREE.PointLight(0xfff0b3,0.5,4,2);
-      wpl.position.set(x,y,-2.2); castleGroup.add(wpl);
+      if(!isMobile){
+        const wpl=new THREE.PointLight(0xfff0b3,0.5,4,2);
+        wpl.position.set(x,y,-2.2); castleGroup.add(wpl);
+      }
     });
   });
 
@@ -993,20 +1043,22 @@ function buildCastle(){
   bridge.position.set(0,0.2,-5.2); bridge.receiveShadow=true; castleGroup.add(bridge);
   const bridgeRail=new THREE.Mesh(new THREE.BoxGeometry(4.2,0.18,0.12),goldMat);
   bridgeRail.position.set(0,0.45,-7.6); castleGroup.add(bridgeRail);
-  const torchL=new THREE.Mesh(new THREE.SphereGeometry(0.18,8,6),gateGlowMat);
+  const torchL=new THREE.Mesh(new THREE.SphereGeometry(0.18,isMobile?5:8,isMobile?4:6),gateGlowMat);
   torchL.position.set(-2.2,1.9,-7.2); castleGroup.add(torchL);
-  const torchR=new THREE.Mesh(new THREE.SphereGeometry(0.18,8,6),gateGlowMat);
+  const torchR=new THREE.Mesh(new THREE.SphereGeometry(0.18,isMobile?5:8,isMobile?4:6),gateGlowMat);
   torchR.position.set(2.2,1.9,-7.2); castleGroup.add(torchR);
-  const torchPL=new THREE.PointLight(0xfde68a,1.2,6,2);
-  torchPL.position.set(-2.2,2.1,-7.2); castleGroup.add(torchPL);
-  const torchPR=new THREE.PointLight(0xfde68a,1.2,6,2);
-  torchPR.position.set(2.2,2.1,-7.2); castleGroup.add(torchPR);
+  if(!isMobile) {
+    const torchPL=new THREE.PointLight(0xfde68a,1.2,6,2);
+    torchPL.position.set(-2.2,2.1,-7.2); castleGroup.add(torchPL);
+    const torchPR=new THREE.PointLight(0xfde68a,1.2,6,2);
+    torchPR.position.set(2.2,2.1,-7.2); castleGroup.add(torchPR);
 
-  // Castle ambient glow
-  const apl=new THREE.PointLight(0xa78bfa,2.2,35,1);
-  apl.position.set(0,9,0); castleGroup.add(apl);
-  const gpl=new THREE.PointLight(0xfde68a,2,30,1.5);
-  gpl.position.set(0,18,1); castleGroup.add(gpl);
+    // Castle ambient glow
+    const apl=new THREE.PointLight(0xa78bfa,2.2,35,1);
+    apl.position.set(0,9,0); castleGroup.add(apl);
+    const gpl=new THREE.PointLight(0xfde68a,2,30,1.5);
+    gpl.position.set(0,18,1); castleGroup.add(gpl);
+  }
 }
 buildCastle();
 
@@ -1022,9 +1074,11 @@ function buildCastleSigns(){
   spots.forEach((p)=>{
     const s=makeSign3D('',p.x,0,p.z,p.ry);
     castleSignGroup.add(s);
-    const glow=new THREE.PointLight(0xfde68a,0.8,6,2);
-    glow.position.set(p.x,1.8,p.z);
-    castleSignGroup.add(glow);
+    if(!isMobile){
+      const glow=new THREE.PointLight(0xfde68a,0.8,6,2);
+      glow.position.set(p.x,1.8,p.z);
+      castleSignGroup.add(glow);
+    }
   });
 }
 buildCastleSigns();
@@ -1146,18 +1200,20 @@ function buildCake(){
     const ring=new THREE.Mesh(new THREE.TorusGeometry(l.r+0.02,0.035,8,24),MM(0xfde68a,0.5,0.2));
     ring.position.y=l.y; ring.rotation.x=Math.PI/2; cakeGroup.add(ring);
     // Sprinkles
-    for(let s=0;s<20;s++){
+    const sprinkleCount=isMobile?5:20;
+    for(let s=0;s<sprinkleCount;s++){
       const ang=Math.random()*Math.PI*2;
       const rr=l.r*0.7+Math.random()*l.r*0.25;
-      const sp=new THREE.Mesh(new THREE.SphereGeometry(0.05,6,5),MM([0xec4899,0x7c3aed,0xf59e0b,0x10b981,0x3b82f6][s%5],0.3));
+      const sp=new THREE.Mesh(new THREE.SphereGeometry(0.05,isMobile?4:6,isMobile?3:5),MM([0xec4899,0x7c3aed,0xf59e0b,0x10b981,0x3b82f6][s%5],0.3));
       sp.position.set(Math.cos(ang)*rr,l.y+l.h/2+0.12,Math.sin(ang)*rr);
       cakeGroup.add(sp);
     }
     // Drip pearls
     if(idx===0||idx===1){
-      for(let d=0;d<10;d++){
+      const dripCount=isMobile?3:10;
+      for(let d=0;d<dripCount;d++){
         const ang=Math.random()*Math.PI*2;
-        const drip=new THREE.Mesh(new THREE.SphereGeometry(0.06,6,5),MM(0xffffff,0.15,0.2));
+        const drip=new THREE.Mesh(new THREE.SphereGeometry(0.06,isMobile?4:6,isMobile?3:5),MM(0xffffff,0.15,0.2));
         drip.position.set(Math.cos(ang)*(l.r+0.02),l.y-0.1,Math.sin(ang)*(l.r+0.02));
         cakeGroup.add(drip);
       }
@@ -1169,12 +1225,18 @@ function buildCake(){
   for(let i=0;i<7;i++){
     const angle=i/7*Math.PI*2;
     const cx2=Math.cos(angle)*0.6, cz2=Math.sin(angle)*0.6;
-    const candle=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.5,8),MM(candleColors[i]));
+    const candle=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.5,isMobile?4:8),MM(candleColors[i]));
     candle.position.set(cx2,4.6,cz2); cakeGroup.add(candle);
-    const flame=new THREE.Mesh(new THREE.SphereGeometry(0.07,6,5),MM(0xfde68a,2));
+    const flame=new THREE.Mesh(new THREE.SphereGeometry(0.07,isMobile?4:6,isMobile?3:5),MM(0xfde68a,2));
     flame.position.set(cx2,4.95,cz2); flame.scale.y=1.5; cakeGroup.add(flame);
-    const fpl=new THREE.PointLight(0xfde68a,1.6,2.5,2);
-    fpl.position.set(cx2,4.95,cz2); cakeGroup.add(fpl);
+    
+    if(!isMobile) {
+      const fpl=new THREE.PointLight(0xfde68a,1.6,2.5,2);
+      fpl.position.set(cx2,4.95,cz2); cakeGroup.add(fpl);
+    } else if (i===0) {
+      const fplBase=new THREE.PointLight(0xfde68a,2.5,8,2);
+      fplBase.position.set(0,4.95,0); cakeGroup.add(fplBase);
+    }
   }
 
   // Crown topper
@@ -1186,8 +1248,10 @@ function buildCake(){
   starDeco.position.y=6.1; cakeGroup.add(starDeco);
 
   // Glow
-  const cpl=new THREE.PointLight(0xf9a8d4,3.5,12,1.5);
-  cpl.position.y=2.5; cakeGroup.add(cpl);
+  if(!isMobile) {
+    const cpl=new THREE.PointLight(0xf9a8d4,3.5,12,1.5);
+    cpl.position.y=2.5; cakeGroup.add(cpl);
+  }
 
   // Click detection sphere (invisible)
   const hitSphere=new THREE.Mesh(new THREE.SphereGeometry(3.2,8,6),new THREE.MeshBasicMaterial({transparent:true,opacity:0}));
@@ -1202,7 +1266,8 @@ buildCake();
 const fwParticles=[];
 function spawnFW(x,y,z){
   const colors=[0xf59e0b,0xec4899,0xa78bfa,0xfde68a,0x93c5fd,0x6ee7b7,0xffffff];
-  for(let i=0;i<30;i++){
+  const count=isMobile?15:30;
+  for(let i=0;i<count;i++){
     const geo=new THREE.SphereGeometry(0.08,4,3);
     const mat=new THREE.MeshBasicMaterial({color:colors[Math.floor(Math.random()*colors.length)]});
     const p=new THREE.Mesh(geo,mat);
@@ -1230,8 +1295,10 @@ function spawnFWBurst(){
 
 // HTML Confetti
 function htmlConfetti(n=80){
+  // Halve confetti on mobile - DOM manipulation is expensive
+  const count=isMobile?Math.floor(n/2):n;
   const cols=['#7c3aed','#ec4899','#f59e0b','#a78bfa','#fde68a','#93c5fd','#6ee7b7','#f9a8d4'];
-  for(let i=0;i<n;i++){
+  for(let i=0;i<count;i++){
     const el=document.createElement('div');
     el.className='cf';
     const s=5+Math.random()*8;
@@ -1719,13 +1786,14 @@ function startPartyScene(){
   // Party lights ring
   const ring=new THREE.Group();
   const ringColors=[0xfde68a,0xf9a8d4,0x93c5fd,0xa78bfa,0x6ee7b7];
+  const ringLightStep=isMobile?6:3;
   for(let i=0;i<18;i++){
     const ang=i/18*Math.PI*2;
     const col=ringColors[i%ringColors.length];
-    const bulb=new THREE.Mesh(new THREE.SphereGeometry(0.1,8,6),MM(col,1.2,0.2));
+    const bulb=new THREE.Mesh(new THREE.SphereGeometry(0.1,isMobile?5:8,isMobile?4:6),MM(col,1.2,0.2));
     bulb.position.set(Math.cos(ang)*4.7,1.4,Math.sin(ang)*4.7);
     ring.add(bulb);
-    if(i%3===0){
+    if(!isMobile && i%ringLightStep===0){
       const pl=new THREE.PointLight(col,0.9,6,2);
       pl.position.copy(bulb.position);
       ring.add(pl);
@@ -1903,26 +1971,34 @@ if(walkBtn){
 // ════════════════════════════════════════════
 let lastTime=0;
 const clock=new THREE.Clock();
+let frameCount=0;
 
 function animate(){
   requestAnimationFrame(animate);
   const dt=clock.getDelta();
   const et=clock.getElapsedTime();
+  frameCount++;
+  // On mobile skip heavy per-frame work every other frame
+  const doHeavy=!isMobile||(frameCount%2===0);
 
   // Camera from spline
   updateCameraFromSpline(camT);
 
-  // Clouds drift
-  clouds.forEach(c=>{
-    c.position.y=c.userData.baseY+Math.sin(et*0.2+c.userData.floatSeed)*0.6;
-    c.position.x=c.userData.baseX+Math.sin(et*0.12+c.userData.floatSeed)*1.2;
-  });
+  // Clouds drift — throttle on mobile
+  if(doHeavy){
+    clouds.forEach(c=>{
+      c.position.y=c.userData.baseY+Math.sin(et*0.2+c.userData.floatSeed)*0.6;
+      c.position.x=c.userData.baseX+Math.sin(et*0.12+c.userData.floatSeed)*1.2;
+    });
+  }
 
-  // Sky orbs float
-  skyOrbs.forEach(o=>{
-    o.position.y+=Math.sin(et*0.6+o.userData.floatSeed)*0.01;
-    o.material.emissiveIntensity=1.0+0.4*Math.sin(et*0.8+o.userData.floatSeed);
-  });
+  // Sky orbs float — throttle on mobile
+  if(doHeavy){
+    skyOrbs.forEach(o=>{
+      o.position.y+=Math.sin(et*0.6+o.userData.floatSeed)*0.01;
+      o.material.emissiveIntensity=1.0+0.4*Math.sin(et*0.8+o.userData.floatSeed);
+    });
+  }
 
   // Animate balloons
   balloons.forEach(b=>{
@@ -1930,11 +2006,13 @@ function animate(){
     b.rotation.z=Math.sin(et*0.8+b.userData.floatSeed)*0.1;
   });
 
-  // Street critters bounce
-  streetCritters.forEach(c=>{
-    c.position.y=c.userData.baseY+Math.abs(Math.sin(et*2.6+c.userData.bounceOffset))*0.08;
-    c.rotation.y+=0.01;
-  });
+  // Street critters bounce — throttle on mobile
+  if(doHeavy){
+    streetCritters.forEach(c=>{
+      c.position.y=c.userData.baseY+Math.abs(Math.sin(et*2.6+c.userData.bounceOffset))*0.08;
+      c.rotation.y+=0.01;
+    });
+  }
 
   // Animate gift glow
   giftMeshes.forEach((gm,i)=>{
@@ -1974,12 +2052,14 @@ function animate(){
     }
   }
 
-  // Window blinking
-  windows.forEach(w=>{
-    const off=w.userData.blinkOff||0;
-    w.material.emissiveIntensity=0.5+0.5*Math.sin(et*0.7+off);
-    w.material.emissive.set(0xfde68a);
-  });
+  // Window blinking — throttle on mobile (every 4 frames)
+  if(!isMobile||(frameCount%4===0)){
+    windows.forEach(w=>{
+      const off=w.userData.blinkOff||0;
+      w.material.emissiveIntensity=0.5+0.5*Math.sin(et*0.7+off);
+      w.material.emissive.set(0xfde68a);
+    });
+  }
 
   // Moon glow pulse
   if(typeof moonGlow !== 'undefined') {
@@ -1989,12 +2069,14 @@ function animate(){
   // Stars twinkle
   starMat.opacity=0.6+0.4*Math.sin(et*0.3);
 
-  // Magical particles float
-  const pPos=partGeo.attributes.position.array;
-  for(let i=0;i<pPos.length;i+=3){
-    pPos[i+1]+=Math.sin(et+partPhases[i/3])*0.003;
+  // Magical particles float — throttle on mobile (every 3 frames)
+  if(!isMobile||(frameCount%3===0)){
+    const pPos=partGeo.attributes.position.array;
+    for(let i=0;i<pPos.length;i+=3){
+      pPos[i+1]+=Math.sin(et+partPhases[i/3])*0.003;
+    }
+    partGeo.attributes.position.needsUpdate=true;
   }
-  partGeo.attributes.position.needsUpdate=true;
 
   // Cat blink
   animateCat(dt);
