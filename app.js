@@ -44,9 +44,9 @@ function buildSky(){
   const skyGeo=new THREE.SphereGeometry(180,segs,isMobile?8:16);
   const pos=skyGeo.attributes.position;
   const colors=[];
-  const top=new THREE.Color(0x0f0c29);
-  const mid=new THREE.Color(0x302b63);
-  const bottom=new THREE.Color(0x24243e);
+  const top=isMobile?new THREE.Color(0x282054):new THREE.Color(0x0f0c29);
+  const mid=isMobile?new THREE.Color(0x5a5196):new THREE.Color(0x302b63);
+  const bottom=isMobile?new THREE.Color(0x403b7c):new THREE.Color(0x24243e);
   for(let i=0;i<pos.count;i++){
     const y=pos.getY(i)/180;
     const t=(y+1)/2;
@@ -95,7 +95,7 @@ const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,0.1,200);
 camera.position.set(0,2.6,-0.5);
 camera.rotation.x=-0.06;
 if(isMobile){
-  const camLight=new THREE.PointLight(0xfff0d0, 1.2, 25, 2);
+  const camLight=new THREE.PointLight(0xfff0d0, 2.5, 40, 1.5);
   camera.add(camLight);
   scene.add(camera);
 }
@@ -113,11 +113,11 @@ renderer.setSize(innerWidth,innerHeight);
 // ════════════════════════════════════════════
 // LIGHTS
 // ════════════════════════════════════════════
-const ambLight=new THREE.AmbientLight(0x2a1458,isMobile ? 1.8 : 0.95);
+const ambLight=new THREE.AmbientLight(0x3a2468,isMobile ? 2.5 : 1.5);
 scene.add(ambLight);
-const hemiLight=new THREE.HemisphereLight(0x2b2148,0x05020d,isMobile ? 0.85 : 0.45);
+const hemiLight=new THREE.HemisphereLight(0x3b3178,0x15022d,isMobile ? 1.2 : 0.8);
 scene.add(hemiLight);
-const sunLight=new THREE.DirectionalLight(0x6b7cc7,0.35);
+const sunLight=new THREE.DirectionalLight(0x8b9ce7,0.6);
 sunLight.position.set(18,26,12);
 sunLight.castShadow=!isMobile;
 sunLight.shadow.mapSize.set(isMobile?512:1024,isMobile?512:1024);
@@ -127,7 +127,7 @@ sunLight.shadow.camera.right=35;
 sunLight.shadow.camera.top=35;
 sunLight.shadow.camera.bottom=-35;
 scene.add(sunLight);
-const moonLight=new THREE.DirectionalLight(0x8bb7ff,0.7);
+const moonLight=new THREE.DirectionalLight(0xabb7ff,1.0);
 moonLight.position.set(-20,30,-40);
 scene.add(moonLight);
 
@@ -149,13 +149,13 @@ function setCastleMood(active){
   if(active===castleMoodActive) return;
   castleMoodActive=active;
   if(active){
-    ambLight.color.set(0x1a0c2e);
-    ambLight.intensity=isMobile ? 1.4 : 0.55;
-    hemiLight.color.set(0x1b1431);
-    hemiLight.groundColor.set(0x050208);
-    hemiLight.intensity=isMobile ? 0.6 : 0.25;
-    sunLight.intensity=0.18;
-    moonLight.intensity=0.95;
+    ambLight.color.set(0x2a1c4e);
+    ambLight.intensity=isMobile ? 2.0 : 1.0;
+    hemiLight.color.set(0x2b2451);
+    hemiLight.groundColor.set(0x151228);
+    hemiLight.intensity=isMobile ? 0.9 : 0.5;
+    sunLight.intensity=0.3;
+    moonLight.intensity=1.2;
     scene.fog.color.set(0x05020f);
     scene.fog.density=0.035;
     renderer.toneMappingExposure=1.05;
@@ -1170,6 +1170,13 @@ function makeAnimal(type,x,y,z){
   }
   g.userData.bounceOffset=Math.random()*Math.PI*2;
   g.userData.baseY=y;
+  g.userData.isAnimal=true;
+  
+  const hitMesh=new THREE.Mesh(new THREE.SphereGeometry(0.8,8,6),new THREE.MeshBasicMaterial({visible:false}));
+  hitMesh.position.y=0.4;
+  g.add(hitMesh);
+  g.userData.hitMesh=hitMesh;
+
   partyGroup.add(g);
   return g;
 }
@@ -1929,8 +1936,20 @@ function handleTap(e){
 
   if(gameState==='party'){
     if(sweetnessSequenceRunning) return;
+    updatePointerFromEvent(e);
+    
+    // Check animals first
+    for(let i=0;i<partyGroup.children.length;i++){
+      const animG=partyGroup.children[i];
+      if(animG.userData.isAnimal && hitTest(animG.userData.hitMesh)){
+         animG.userData.isHopping=true;
+         animG.userData.hopT=0;
+         playStep();
+         return;
+      }
+    }
+
     if(awaitingCakeTap){
-      updatePointerFromEvent(e);
       if(hitTest(cakeGroup.userData.hitSphere)){
         awaitingCakeTap=false;
         gameState='party';
@@ -2031,8 +2050,19 @@ function animate(){
     partyGroup.children.forEach(a=>{
       if(typeof a.userData.baseY==='number'){
         const sp=finalCelebrationRunning?4.2:2.5;
-        a.position.y=a.userData.baseY+Math.abs(Math.sin(et*sp+a.userData.bounceOffset))*0.25;
-        a.rotation.y+=finalCelebrationRunning?0.02:0.01;
+        let targetY=a.userData.baseY+Math.abs(Math.sin(et*sp+a.userData.bounceOffset))*0.25;
+        if(a.userData.isHopping){
+          a.userData.hopT += dt*8;
+          if(a.userData.hopT>=Math.PI){
+             a.userData.isHopping=false;
+             a.userData.hopT=0;
+          } else {
+             targetY += Math.sin(a.userData.hopT)*1.8;
+             a.rotation.y += dt*10;
+          }
+        }
+        a.position.y=targetY;
+        if(!a.userData.isHopping) a.rotation.y+=finalCelebrationRunning?0.02:0.01;
       }
     });
     // Cake rotation
