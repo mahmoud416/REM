@@ -65,7 +65,7 @@ buildSky();
 const clouds=[];
 function buildClouds(){
   const cloudMat=isMobile
-    ? new THREE.MeshPhongMaterial({color:0x3b1d6a,shininess:10,transparent:true,opacity:0.45})
+    ? new THREE.MeshLambertMaterial({color:0x3b1d6a,transparent:true,opacity:0.45})
     : new THREE.MeshStandardMaterial({color:0x3b1d6a,roughness:1,metalness:0,transparent:true,opacity:0.45});
   const cloudCount=isMobile?5:10;
   // Share a single puff geometry across all cloud puffs
@@ -94,6 +94,11 @@ buildClouds();
 const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,0.1,200);
 camera.position.set(0,2.6,-0.5);
 camera.rotation.x=-0.06;
+if(isMobile){
+  const camLight=new THREE.PointLight(0xfff0d0, 1.2, 25, 2);
+  camera.add(camLight);
+  scene.add(camera);
+}
 
 let lastWidth = window.innerWidth;
 window.addEventListener('resize',()=>{
@@ -108,9 +113,9 @@ renderer.setSize(innerWidth,innerHeight);
 // ════════════════════════════════════════════
 // LIGHTS
 // ════════════════════════════════════════════
-const ambLight=new THREE.AmbientLight(0x2a1458,0.95);
+const ambLight=new THREE.AmbientLight(0x2a1458,isMobile ? 1.8 : 0.95);
 scene.add(ambLight);
-const hemiLight=new THREE.HemisphereLight(0x2b2148,0x05020d,0.45);
+const hemiLight=new THREE.HemisphereLight(0x2b2148,0x05020d,isMobile ? 0.85 : 0.45);
 scene.add(hemiLight);
 const sunLight=new THREE.DirectionalLight(0x6b7cc7,0.35);
 sunLight.position.set(18,26,12);
@@ -145,10 +150,10 @@ function setCastleMood(active){
   castleMoodActive=active;
   if(active){
     ambLight.color.set(0x1a0c2e);
-    ambLight.intensity=0.55;
+    ambLight.intensity=isMobile ? 1.4 : 0.55;
     hemiLight.color.set(0x1b1431);
     hemiLight.groundColor.set(0x050208);
-    hemiLight.intensity=0.25;
+    hemiLight.intensity=isMobile ? 0.6 : 0.25;
     sunLight.intensity=0.18;
     moonLight.intensity=0.95;
     scene.fog.color.set(0x05020f);
@@ -174,7 +179,7 @@ function setCastleMood(active){
 const MM=(c,e=0,rough=0.7,metal=0.05)=>{
   let m;
   if (isMobile) {
-    m = new THREE.MeshPhongMaterial({color:c,shininess:30});
+    m = new THREE.MeshLambertMaterial({color:c});
   } else {
     m = new THREE.MeshStandardMaterial({color:c,roughness:rough,metalness:metal});
   }
@@ -249,9 +254,9 @@ function buildRoad(){
     return mesh;
   }
 
-  const roadMat = isMobile ? new THREE.MeshPhongMaterial({color:0x1e0e50,shininess:5}) : new THREE.MeshStandardMaterial({color:0x1e0e50,roughness:0.95,metalness:0.0});
-  const inlayMat = isMobile ? new THREE.MeshPhongMaterial({color:0x1a0f3a,shininess:15,emissive:new THREE.Color(0x1a0f3a),emissiveIntensity:0.02}) : new THREE.MeshStandardMaterial({color:0x1a0f3a,roughness:0.7,metalness:0.05,emissive:new THREE.Color(0x1a0f3a),emissiveIntensity:0.02});
-  const centerMat = isMobile ? new THREE.MeshPhongMaterial({color:0x2a1b5a,shininess:30,emissive:new THREE.Color(0x2a1b5a),emissiveIntensity:0.05}) : new THREE.MeshStandardMaterial({color:0x2a1b5a,roughness:0.5,metalness:0.1,emissive:new THREE.Color(0x2a1b5a),emissiveIntensity:0.05});
+  const roadMat = isMobile ? new THREE.MeshLambertMaterial({color:0x1e0e50}) : new THREE.MeshStandardMaterial({color:0x1e0e50,roughness:0.95,metalness:0.0});
+  const inlayMat = isMobile ? new THREE.MeshLambertMaterial({color:0x1a0f3a,emissive:new THREE.Color(0x1a0f3a),emissiveIntensity:0.02}) : new THREE.MeshStandardMaterial({color:0x1a0f3a,roughness:0.7,metalness:0.05,emissive:new THREE.Color(0x1a0f3a),emissiveIntensity:0.02});
+  const centerMat = isMobile ? new THREE.MeshLambertMaterial({color:0x2a1b5a,emissive:new THREE.Color(0x2a1b5a),emissiveIntensity:0.05}) : new THREE.MeshStandardMaterial({color:0x2a1b5a,roughness:0.5,metalness:0.1,emissive:new THREE.Color(0x2a1b5a),emissiveIntensity:0.05});
 
   ribbon(3.6,-0.06,roadMat);
   ribbon(2.45,-0.03,inlayMat);
@@ -293,7 +298,7 @@ buildRoad();
 
 // Ground (wide magical grass/floor)
 const groundGeo=new THREE.PlaneGeometry(220,320);
-const groundMat=isMobile ? new THREE.MeshPhongMaterial({color:0x050310,shininess:5}) : new THREE.MeshStandardMaterial({color:0x050310,roughness:1,metalness:0});
+const groundMat=isMobile ? new THREE.MeshLambertMaterial({color:0x050310}) : new THREE.MeshStandardMaterial({color:0x050310,roughness:1,metalness:0});
 const ground=new THREE.Mesh(groundGeo,groundMat);
 ground.rotation.x=-Math.PI/2; ground.position.y=-0.1; ground.position.z=-80;
 ground.receiveShadow=true;
@@ -989,10 +994,8 @@ function buildCastle(){
   spireTop.position.set(0,20.5,1); spireTop.castShadow=true; castleGroup.add(spireTop);
   const spireStar=new THREE.Mesh(new THREE.OctahedronGeometry(0.5),MM(0xfde68a,1.6,0.2));
   spireStar.position.set(0,22,1); castleGroup.add(spireStar);
-  if(!isMobile) {
-    const starLight=new THREE.PointLight(0xfde68a,1.6,18,2);
-    starLight.position.set(0,22,1); castleGroup.add(starLight);
-  }
+  const starLight=new THREE.PointLight(0xfde68a,1.6,18,2);
+  starLight.position.set(0,22,1); castleGroup.add(starLight);
 
   function addTower(x,z,h=9,r=1.6){
     const tower=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,12),shadowMat);
@@ -1052,13 +1055,13 @@ function buildCastle(){
     torchPL.position.set(-2.2,2.1,-7.2); castleGroup.add(torchPL);
     const torchPR=new THREE.PointLight(0xfde68a,1.2,6,2);
     torchPR.position.set(2.2,2.1,-7.2); castleGroup.add(torchPR);
-
-    // Castle ambient glow
-    const apl=new THREE.PointLight(0xa78bfa,2.2,35,1);
-    apl.position.set(0,9,0); castleGroup.add(apl);
-    const gpl=new THREE.PointLight(0xfde68a,2,30,1.5);
-    gpl.position.set(0,18,1); castleGroup.add(gpl);
   }
+
+  // Castle ambient glow
+  const apl=new THREE.PointLight(0xa78bfa,2.2,35,1);
+  apl.position.set(0,9,0); castleGroup.add(apl);
+  const gpl=new THREE.PointLight(0xfde68a,2,30,1.5);
+  gpl.position.set(0,18,1); castleGroup.add(gpl);
 }
 buildCastle();
 
@@ -1234,8 +1237,8 @@ function buildCake(){
       const fpl=new THREE.PointLight(0xfde68a,1.6,2.5,2);
       fpl.position.set(cx2,4.95,cz2); cakeGroup.add(fpl);
     } else if (i===0) {
-      const fplBase=new THREE.PointLight(0xfde68a,2.5,8,2);
-      fplBase.position.set(0,4.95,0); cakeGroup.add(fplBase);
+      const fplBase=new THREE.PointLight(0xfde68a,3.5,18,1.5);
+      fplBase.position.set(0,2.5,0); cakeGroup.add(fplBase);
     }
   }
 
